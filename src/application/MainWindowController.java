@@ -3,8 +3,7 @@ package application;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.io.UnsupportedEncodingException;
+import java.io.Writer;
 import java.nio.file.Files;
 
 import javax.script.ScriptContext;
@@ -23,11 +22,11 @@ import javafx.scene.input.TransferMode;
 import javafx.stage.FileChooser;
 
 public class MainWindowController {
-	@FXML private TextArea textAreaScript;
-	@FXML private TextArea textAreaStdout;
-	
-	private ScriptEngine eng = new ScriptEngineManager().getEngineByName("python");
-	
+    @FXML private TextArea textAreaScript;
+    @FXML private TextArea textAreaStdout;
+
+    private Thread runningThread = null;
+
     public void handleDragOver(DragEvent event) {
         Dragboard db = event.getDragboard();
         if (db.hasFiles()) {
@@ -42,74 +41,95 @@ public class MainWindowController {
         boolean success = false;
         if (db.hasFiles()) {
             success = true;
-            String script = "";
             for (File file : db.getFiles()) {
-    			try {
-					script += new String(Files.readAllBytes(file.toPath()), "UTF-8");
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+                try {
+                    String script = new String(Files.readAllBytes(file.toPath()), "UTF-8");
+                    textAreaScript.setText(script);
+                    break;
+                } catch (IOException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
             }
-            textAreaScript.setText(script);
         }
         event.setDropCompleted(success);
         event.consume();
     }
 
     public void handleOpenFile() {
-    	FileChooser fileChooser = new FileChooser();
-    	fileChooser.setTitle("Open File");
-    	fileChooser.getExtensionFilters().addAll(
-    			new FileChooser.ExtensionFilter("Python script", "*.py"),
-    			new FileChooser.ExtensionFilter("All files", "*.*")
-    	);
-    	File file = fileChooser.showOpenDialog(textAreaScript.getScene().getWindow());
-    	String script;
-		try {
-			script = new String(Files.readAllBytes(file.toPath()), "UTF-8");
-			textAreaScript.setText(script);
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	}
-    
-	public void handleRun() {
-        Task<Void> task = new Task<Void>() {
-            @Override
-            protected Void call() throws Exception {
-                Scene scene = textAreaScript.getScene();
-        		scene.setCursor(Cursor.WAIT);
-        		executeScript();
-        		scene.setCursor(Cursor.DEFAULT);
-				return null;
-            }
-        };
-        new Thread(task).start();
-	}
-	
-	private void executeScript() {
-		StringWriter writer = new StringWriter();
-        ScriptContext context = eng.getContext();
-        context.setWriter(new PrintWriter(writer));
-        context.setErrorWriter(new PrintWriter(writer));
-        
-        String script = textAreaScript.getText();
-        String stdout;
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Open File");
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Python script", "*.py"),
+                new FileChooser.ExtensionFilter("All files", "*.*")
+        );
+        File file = fileChooser.showOpenDialog(textAreaScript.getScene().getWindow());
+        String script;
         try {
-			eng.eval(script);
-			stdout = decodeUtf8(writer.toString());
-		} catch (ScriptException e) {
-			stdout = e.getMessage();
-		} catch (UnsupportedEncodingException e) {
-			stdout = e.toString();
-		}
-        textAreaStdout.setText(stdout);
-	}
-	
-	private String decodeUtf8(String s) throws UnsupportedEncodingException {
-		return new String(s.getBytes("ISO-8859-1"), "UTF-8");
-	}
+            script = new String(Files.readAllBytes(file.toPath()), "UTF-8");
+            textAreaScript.setText(script);
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+    }
 
+    public void handleRun() throws InterruptedException {
+        if (runningThread != null) {
+            runningThread.interrupt();
+        }
+        ExecuteScriptTask task = new ExecuteScriptTask();
+        textAreaStdout.textProperty().bind(task.messageProperty());
+        runningThread = new Thread(task);
+        runningThread.start();
+    }
+
+    class ExecuteScriptTask extends Task<Void> {
+        class MessageWriter extends Writer {
+            private StringBuilder sb;
+
+            MessageWriter() {
+                this.sb = new StringBuilder();
+            }
+
+            @Override
+            public void write(char[] cbuf, int off, int len) throws IOException {
+                sb.append(cbuf, off, len);
+            }
+
+            @Override
+            public void flush() throws IOException {
+                updateMessage(new String(sb.toString().getBytes("ISO-8859-1"), "UTF-8"));
+            }
+
+            @Override
+            public void close() throws IOException {
+            }
+        }
+
+        @Override
+        protected Void call() throws Exception {
+            Scene scene = textAreaScript.getScene();
+            scene.setCursor(Cursor.WAIT);
+            executeScript();
+            scene.setCursor(Cursor.DEFAULT);
+            return null;
+        }
+
+        private void executeScript() {
+            PrintWriter printWriter = new PrintWriter(new MessageWriter());
+            ScriptEngine engine = new ScriptEngineManager().getEngineByName("python");
+            ScriptContext context = engine.getContext();
+            context.setWriter(printWriter);
+            context.setErrorWriter(printWriter);
+
+            String script = textAreaScript.getText();
+            try {
+                engine.eval(script);
+            } catch (ScriptException e) {
+                printWriter.println(e.getMessage());
+                printWriter.flush();
+            }
+        }
+    }
 }
