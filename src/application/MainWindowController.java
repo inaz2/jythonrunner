@@ -2,7 +2,9 @@ package application;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.PipedReader;
+import java.io.PipedWriter;
+import java.io.UnsupportedEncodingException;
 import java.io.Writer;
 import java.nio.file.Files;
 
@@ -16,6 +18,7 @@ import javafx.fxml.FXML;
 import javafx.scene.Cursor;
 import javafx.scene.Scene;
 import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
 import javafx.scene.input.DragEvent;
 import javafx.scene.input.Dragboard;
 import javafx.scene.input.TransferMode;
@@ -24,8 +27,10 @@ import javafx.stage.FileChooser;
 public class MainWindowController {
     @FXML private TextArea textAreaScript;
     @FXML private TextArea textAreaStdout;
+    @FXML private TextField textFieldStdin;
 
     private Thread runningThread = null;
+    private PipedWriter stdinWriter = null;
 
     public void handleDragOver(DragEvent event) {
         Dragboard db = event.getDragboard();
@@ -42,19 +47,14 @@ public class MainWindowController {
         if (db.hasFiles()) {
             success = true;
             for (File file : db.getFiles()) {
-                try {
-                    String script = new String(Files.readAllBytes(file.toPath()), "UTF-8");
-                    textAreaScript.setText(script);
-                    break;
-                } catch (IOException e) {
-                    // TODO Auto-generated catch block
-                    e.printStackTrace();
-                }
+                loadFile(file);
+                break;
             }
         }
         event.setDropCompleted(success);
         event.consume();
     }
+
 
     public void handleOpenFile() {
         FileChooser fileChooser = new FileChooser();
@@ -64,14 +64,18 @@ public class MainWindowController {
                 new FileChooser.ExtensionFilter("All files", "*.*")
         );
         File file = fileChooser.showOpenDialog(textAreaScript.getScene().getWindow());
-        String script;
-        try {
-            script = new String(Files.readAllBytes(file.toPath()), "UTF-8");
-            textAreaScript.setText(script);
-        } catch (IOException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
+        loadFile(file);
+    }
+
+    public void handleStdin() {
+        String line = textFieldStdin.getText() + "\n";
+        if (stdinWriter != null) {
+            try {
+                stdinWriter.write(new String(line.getBytes("UTF-8"), "ISO-8859-1"));
+            } catch (IOException e) {
+            }
         }
+        textFieldStdin.clear();
     }
 
     public void handleRun() throws InterruptedException {
@@ -84,12 +88,22 @@ public class MainWindowController {
         runningThread.start();
     }
 
-    class ExecuteScriptTask extends Task<Void> {
-        class MessageWriter extends Writer {
-            private StringBuilder sb;
+    private void loadFile(File file) {
+        try {
+            String script = new String(Files.readAllBytes(file.toPath()), "UTF-8");
+            textAreaScript.setText(script);
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+    }
+
+    private class ExecuteScriptTask extends Task<Void> {
+        private class MessageWriter extends Writer {
+            private StringBuffer sb;
 
             MessageWriter() {
-                this.sb = new StringBuilder();
+                this.sb = new StringBuffer();
             }
 
             @Override
@@ -98,8 +112,13 @@ public class MainWindowController {
             }
 
             @Override
-            public void flush() throws IOException {
-                updateMessage(new String(sb.toString().getBytes("ISO-8859-1"), "UTF-8"));
+            public void flush() {
+                try {
+                    updateMessage(new String(sb.toString().getBytes("ISO-8859-1"), "UTF-8"));
+                } catch (UnsupportedEncodingException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
             }
 
             @Override
@@ -117,18 +136,31 @@ public class MainWindowController {
         }
 
         private void executeScript() {
-            PrintWriter printWriter = new PrintWriter(new MessageWriter());
+            Writer stdoutWriter = new MessageWriter();
             ScriptEngine engine = new ScriptEngineManager().getEngineByName("python");
             ScriptContext context = engine.getContext();
-            context.setWriter(printWriter);
-            context.setErrorWriter(printWriter);
+
+            stdinWriter = new PipedWriter();
+            try {
+                context.setReader(new PipedReader(stdinWriter));
+            } catch (IOException e2) {
+                // TODO Auto-generated catch block
+                e2.printStackTrace();
+            }
+            context.setWriter(stdoutWriter);
+            context.setErrorWriter(stdoutWriter);
 
             String script = textAreaScript.getText();
             try {
                 engine.eval(script);
             } catch (ScriptException e) {
-                printWriter.println(e.getMessage());
-                printWriter.flush();
+                try {
+                    stdoutWriter.write(e.getMessage());
+                    stdoutWriter.flush();
+                } catch (IOException e1) {
+                    // TODO Auto-generated catch block
+                    e1.printStackTrace();
+                }
             }
         }
     }
