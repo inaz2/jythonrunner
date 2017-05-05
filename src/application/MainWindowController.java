@@ -12,6 +12,7 @@ import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 
+import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.scene.Cursor;
@@ -31,6 +32,15 @@ public class MainWindowController {
     private Thread runningThread = null;
     private PipedWriter stdinWriter = null;
 
+    @FXML private void initialize() {
+        Platform.runLater(() -> {
+            ExecuteScriptTask task = new ExecuteScriptTask("print 'Jython loaded'");
+            textAreaStdout.textProperty().bind(task.messageProperty());
+            runningThread = new Thread(task);
+            runningThread.start();
+        });
+    }
+    
     public void handleDragOver(DragEvent event) {
         Dragboard db = event.getDragboard();
         if (db.hasFiles()) {
@@ -85,7 +95,7 @@ public class MainWindowController {
         if (runningThread != null) {
             runningThread.interrupt();
         }
-        ExecuteScriptTask task = new ExecuteScriptTask();
+        ExecuteScriptTask task = new ExecuteScriptTask(textAreaScript.getText());
         textAreaStdout.textProperty().bind(task.messageProperty());
         runningThread = new Thread(task);
         runningThread.start();
@@ -98,6 +108,12 @@ public class MainWindowController {
     }
 
     private class ExecuteScriptTask extends Task<Void> {
+        private String script;
+        
+        ExecuteScriptTask(String script) {
+            this.script = script;
+        }
+        
         private class MessageWriter extends Writer {
             private StringBuffer sb;
 
@@ -139,7 +155,6 @@ public class MainWindowController {
             context.setWriter(stdoutWriter);
             context.setErrorWriter(stdoutWriter);
 
-            String script = textAreaScript.getText();
             try {
                 engine.eval(script);
             } catch (ScriptException e) {
