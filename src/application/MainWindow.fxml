@@ -11,33 +11,35 @@
 <?import javafx.scene.layout.RowConstraints?>
 
 <BorderPane onDragDropped="#handleDragDropped" onDragOver="#handleDragOver" xmlns="http://javafx.com/javafx/8.0.111" xmlns:fx="http://javafx.com/fxml/1" fx:controller="application.MainWindowController">
-   <center>
-      <GridPane BorderPane.alignment="CENTER">
-        <columnConstraints>
-          <ColumnConstraints hgrow="ALWAYS" />
-          <ColumnConstraints hgrow="ALWAYS" />
-        </columnConstraints>
-        <rowConstraints>
-          <RowConstraints minHeight="-Infinity" />
-          <RowConstraints vgrow="ALWAYS" />
-          <RowConstraints minHeight="-Infinity" />
-          <RowConstraints minHeight="-Infinity" />
-        </rowConstraints>
-         <children>
-            <Label maxWidth="Infinity" text="Script">
-               <GridPane.margin>
-                  <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
-               </GridPane.margin></Label>
-            <Label maxWidth="Infinity" text="Standard I/O" GridPane.columnIndex="1">
-               <GridPane.margin>
-                  <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
-               </GridPane.margin></Label>
-            <TextArea fx:id="textAreaScript" wrapText="true" GridPane.rowIndex="1" GridPane.rowSpan="2" />
-            <TextArea fx:id="textAreaStdout" editable="false" wrapText="true" GridPane.columnIndex="1" GridPane.rowIndex="1" />
-            <TextField fx:id="textFieldStdin" onAction="#handleStdin" GridPane.columnIndex="1" GridPane.rowIndex="2" />
-            <Button maxWidth="Infinity" mnemonicParsing="false" onAction="#handleOpenFile" text="Open File" GridPane.rowIndex="3" />
-            <Button maxWidth="Infinity" mnemonicParsing="false" onAction="#handleRun" text="Run" GridPane.columnIndex="1" GridPane.rowIndex="3" />
-         </children>
-      </GridPane>
-   </center>
+	<center>
+		<GridPane BorderPane.alignment="CENTER">
+			<columnConstraints>
+				<ColumnConstraints hgrow="ALWAYS" />
+				<ColumnConstraints hgrow="ALWAYS" />
+			</columnConstraints>
+			<rowConstraints>
+				<RowConstraints minHeight="-Infinity" />
+				<RowConstraints vgrow="ALWAYS" />
+				<RowConstraints minHeight="-Infinity" />
+				<RowConstraints minHeight="-Infinity" />
+			</rowConstraints>
+			<children>
+				<TextArea fx:id="textAreaScript" wrapText="true" GridPane.rowIndex="1" GridPane.rowSpan="2" />
+				<TextArea fx:id="textAreaStdout" editable="false" wrapText="true" GridPane.columnIndex="1" GridPane.rowIndex="1" />
+				<TextField fx:id="textFieldStdin" onAction="#handleStdin" GridPane.columnIndex="1" GridPane.rowIndex="2" />
+				<Label labelFor="$textAreaScript" maxWidth="Infinity" mnemonicParsing="true" text="_Script">
+					<GridPane.margin>
+						<Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
+					</GridPane.margin>
+				</Label>
+				<Label maxWidth="Infinity" text="Standard I/O" GridPane.columnIndex="1">
+					<GridPane.margin>
+						<Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
+					</GridPane.margin>
+				</Label>
+				<Button maxWidth="Infinity" mnemonicParsing="true" onAction="#handleOpenFile" text="_Open File" GridPane.rowIndex="3" />
+				<Button maxWidth="Infinity" mnemonicParsing="true" onAction="#handleRun" text="_Run" GridPane.columnIndex="1" GridPane.rowIndex="3" />
+			</children>
+		</GridPane>
+	</center>
 </BorderPane>

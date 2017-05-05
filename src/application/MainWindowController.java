@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.PipedReader;
 import java.io.PipedWriter;
-import java.io.UnsupportedEncodingException;
 import java.io.Writer;
 import java.nio.file.Files;
 
@@ -47,14 +46,17 @@ public class MainWindowController {
         if (db.hasFiles()) {
             success = true;
             for (File file : db.getFiles()) {
-                loadFile(file);
-                break;
+                try {
+                    loadFile(file);
+                    break;
+                } catch (IOException e) {
+                    // continue
+                }
             }
         }
         event.setDropCompleted(success);
         event.consume();
     }
-
 
     public void handleOpenFile() {
         FileChooser fileChooser = new FileChooser();
@@ -64,21 +66,22 @@ public class MainWindowController {
                 new FileChooser.ExtensionFilter("All files", "*.*")
         );
         File file = fileChooser.showOpenDialog(textAreaScript.getScene().getWindow());
-        loadFile(file);
+        try {
+            loadFile(file);
+        } catch (IOException e) {
+            // cancelled
+        }
     }
 
-    public void handleStdin() {
+    public void handleStdin() throws IOException {
         String line = textFieldStdin.getText() + "\n";
         if (stdinWriter != null) {
-            try {
-                stdinWriter.write(new String(line.getBytes("UTF-8"), "ISO-8859-1"));
-            } catch (IOException e) {
-            }
+            stdinWriter.write(new String(line.getBytes("UTF-8"), "ISO-8859-1"));
         }
         textFieldStdin.clear();
     }
 
-    public void handleRun() throws InterruptedException {
+    public void handleRun() {
         if (runningThread != null) {
             runningThread.interrupt();
         }
@@ -86,16 +89,12 @@ public class MainWindowController {
         textAreaStdout.textProperty().bind(task.messageProperty());
         runningThread = new Thread(task);
         runningThread.start();
+        textFieldStdin.requestFocus();
     }
 
-    private void loadFile(File file) {
-        try {
-            String script = new String(Files.readAllBytes(file.toPath()), "UTF-8");
-            textAreaScript.setText(script);
-        } catch (IOException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
+    private void loadFile(File file) throws IOException {
+        String script = new String(Files.readAllBytes(file.toPath()), "UTF-8");
+        textAreaScript.setText(script);
     }
 
     private class ExecuteScriptTask extends Task<Void> {
@@ -112,13 +111,8 @@ public class MainWindowController {
             }
 
             @Override
-            public void flush() {
-                try {
-                    updateMessage(new String(sb.toString().getBytes("ISO-8859-1"), "UTF-8"));
-                } catch (UnsupportedEncodingException e) {
-                    // TODO Auto-generated catch block
-                    e.printStackTrace();
-                }
+            public void flush() throws IOException {
+                updateMessage(new String(sb.toString().getBytes("ISO-8859-1"), "UTF-8"));
             }
 
             @Override
@@ -135,18 +129,13 @@ public class MainWindowController {
             return null;
         }
 
-        private void executeScript() {
+        private void executeScript() throws IOException {
             Writer stdoutWriter = new MessageWriter();
             ScriptEngine engine = new ScriptEngineManager().getEngineByName("python");
             ScriptContext context = engine.getContext();
 
             stdinWriter = new PipedWriter();
-            try {
-                context.setReader(new PipedReader(stdinWriter));
-            } catch (IOException e2) {
-                // TODO Auto-generated catch block
-                e2.printStackTrace();
-            }
+            context.setReader(new PipedReader(stdinWriter));
             context.setWriter(stdoutWriter);
             context.setErrorWriter(stdoutWriter);
 
@@ -154,14 +143,11 @@ public class MainWindowController {
             try {
                 engine.eval(script);
             } catch (ScriptException e) {
-                try {
-                    stdoutWriter.write(e.getMessage());
-                    stdoutWriter.flush();
-                } catch (IOException e1) {
-                    // TODO Auto-generated catch block
-                    e1.printStackTrace();
-                }
+                stdoutWriter.write(e.getMessage());
+                stdoutWriter.flush();
             }
+
+            stdinWriter = null;
         }
     }
 }
