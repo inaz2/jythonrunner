@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.PipedReader;
 import java.io.PipedWriter;
+import java.io.UnsupportedEncodingException;
 import java.io.Writer;
 import java.nio.file.Files;
 
@@ -86,9 +87,9 @@ public class MainWindowController {
     public void handleStdin() throws IOException {
         String line = textFieldStdin.getText() + "\n";
         if (stdinWriter != null) {
-            stdinWriter.write(new String(line.getBytes("UTF-8"), "ISO-8859-1"));
+            stdinWriter.write(convertCharset(line, "UTF-8", "ISO-8859-1"));
+            textFieldStdin.clear();
         }
-        textFieldStdin.clear();
     }
 
     public void handleRun() {
@@ -106,6 +107,10 @@ public class MainWindowController {
         String script = new String(Files.readAllBytes(file.toPath()), "UTF-8");
         textAreaScript.setText(script);
     }
+    
+    private String convertCharset(String s, String from, String to) throws UnsupportedEncodingException {
+        return new String(s.getBytes(from), to);
+    }
 
     private class ExecuteScriptTask extends Task<Void> {
         private String script;
@@ -115,10 +120,10 @@ public class MainWindowController {
         }
         
         private class MessageWriter extends Writer {
-            private StringBuffer sb;
+            private StringBuilder sb;
 
             MessageWriter() {
-                this.sb = new StringBuffer();
+                this.sb = new StringBuilder();
             }
 
             @Override
@@ -128,7 +133,7 @@ public class MainWindowController {
 
             @Override
             public void flush() throws IOException {
-                updateMessage(new String(sb.toString().getBytes("ISO-8859-1"), "UTF-8"));
+                updateMessage(convertCharset(sb.toString(), "ISO-8859-1", "UTF-8"));
             }
 
             @Override
@@ -146,11 +151,11 @@ public class MainWindowController {
         }
 
         private void executeScript() throws IOException {
-            Writer stdoutWriter = new MessageWriter();
             ScriptEngine engine = new ScriptEngineManager().getEngineByName("python");
             ScriptContext context = engine.getContext();
 
             stdinWriter = new PipedWriter();
+            Writer stdoutWriter = new MessageWriter();
             context.setReader(new PipedReader(stdinWriter));
             context.setWriter(stdoutWriter);
             context.setErrorWriter(stdoutWriter);
